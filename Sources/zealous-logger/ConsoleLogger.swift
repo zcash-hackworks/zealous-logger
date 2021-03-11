@@ -8,65 +8,95 @@
 import Foundation
 import os
 
+#if COCOAPODS
+import CocoaLumberjack
+#else
+import CocoaLumberjackSwift
+#endif
+
+
+protocol ConcreteLogger {
+    func log(level: LogLevel, message: String, file: StaticString, function: StaticString, line: Int)
+    var level: LogLevel { get  }
+}
+
 class ConsoleLogger: Logger {
-    enum LogLevel: Int {
-        case debug
-        case error
-        case warning
-        case event
-        case info
+
+    var concreteLogger: ConcreteLogger
+    
+    init(concreteLogger: ConcreteLogger) {
+        self.concreteLogger = concreteLogger
     }
     
-    enum LoggerType {
-        case osLog
-        case printerLog
+    func debug(_ message: String, file: StaticString, function: StaticString, line: Int) {
+        guard concreteLogger.level.rawValue == LogLevel.debug.rawValue else { return }
+        concreteLogger.log(level: concreteLogger.level, message: message, file: file, function: function, line: line)
     }
     
-    var level: LogLevel
-    var loggerType: LoggerType
-    
-    init(logLevel: LogLevel, type: LoggerType = .osLog) {
-        self.level = logLevel
-        self.loggerType = type
+    func error(_ message: String, file: StaticString, function: StaticString, line: Int) {
+        guard concreteLogger.level.rawValue <= LogLevel.error.rawValue else { return }
+        concreteLogger.log(level: concreteLogger.level, message: message, file: file, function: function, line: line)
     }
     
-    private static let subsystem = Bundle.main.bundleIdentifier!
-    
-    @available(OSX 10.12, *)
-    static let oslog = OSLog(subsystem: subsystem, category: "logs")
-    
-    func debug(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
-        guard level.rawValue == LogLevel.debug.rawValue else { return }
-        log(level: "DEBUG 🐞", message: message, file: file, function: function, line: line)
-    }
-    
-    func error(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
-        guard level.rawValue <= LogLevel.error.rawValue else { return }
-        log(level: "ERROR 💥", message: message, file: file, function: function, line: line)
-    }
-    
-    func warn(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
-           guard level.rawValue <= LogLevel.warning.rawValue else { return }
-           log(level: "WARNING ⚠️", message: message, file: file, function: function, line: line)
+    func warn(_ message: String, file: StaticString, function: StaticString, line: Int) {
+        guard concreteLogger.level.rawValue <= LogLevel.warning.rawValue else { return }
+        concreteLogger.log(level: concreteLogger.level, message: message, file: file, function: function, line: line)
     }
 
-    func event(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
-        guard level.rawValue <= LogLevel.event.rawValue else { return }
-        log(level: "EVENT ⏱", message: message, file: file, function: function, line: line)
+    func event(_ message: String, file: StaticString, function: StaticString, line: Int) {
+        guard concreteLogger.level.rawValue <= LogLevel.event.rawValue else { return }
+        concreteLogger.log(level: concreteLogger.level, message: message, file: file, function: function, line: line)
     }
     
-    func info(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
-        guard level.rawValue <= LogLevel.info.rawValue else { return }
-        log(level: "INFO ℹ️", message: message, file: file, function: function, line: line)
+    func info(_ message: String, file: StaticString, function: StaticString, line: Int) {
+        guard concreteLogger.level.rawValue <= LogLevel.info.rawValue else { return }
+        concreteLogger.log(level: concreteLogger.level, message: message, file: file, function: function, line: line)
+    }
+}
+
+class OsLogLogger: ConcreteLogger {
+
+    var level: LogLevel
+    
+    var oslog: OSLog
+    
+    init(subsystem: String, level: LogLevel) {
+        self.level = level
+        self.oslog = OSLog(subsystem: subsystem, category: "logs")
     }
     
-    private func log(level: String, message: String, file: String, function: String, line: Int) {
-        let fileName = (file as NSString).lastPathComponent
-        switch loggerType {
-        case .printerLog:
-            print("[\(level)] \(fileName) - \(function) - line: \(line) -> \(message)")
-        default:
-            os_log("[%{public}@] %{public}@ - %{public}@ - Line: %{public}d -> %{public}@", level, fileName, function, line, message)
+    private func describeLevel(_ level: LogLevel) -> String  {
+        switch level {
+        case .debug:
+            return "DEBUG 🐞"
+        case .error:
+            return "ERROR 💥"
+        case .event:
+            return "EVENT ⏱"
+        case .info:
+            return "INFO ℹ️"
+        case .warning:
+            return "WARNING ⚠️"
         }
+    }
+    
+    func log(level: LogLevel, message: String, file: StaticString, function: StaticString, line: Int) {
+        let fileName = (String(describing: file) as NSString).lastPathComponent
+        
+        os_log("[%{public}@] %{public}@ - %{public}@ - Line: %{public}d -> %{public}@", log: oslog, describeLevel(level), fileName, String(describing: fileName), line, message)
+    }
+}
+
+class PrinterLogger: ConcreteLogger {
+    
+    var level: LogLevel
+    
+    init(level: LogLevel) {
+        self.level = level
+    }
+    
+    func log(level: LogLevel, message: String, file: StaticString, function: StaticString, line: Int) {
+        let filename = (String(describing: file) as NSString).lastPathComponent
+        print("[\(level)] \(filename) - \(function) - line: \(line) -> \(message)")
     }
 }

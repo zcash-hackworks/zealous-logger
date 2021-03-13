@@ -45,9 +45,7 @@ class DDLogger: Logger {
 
 
 class LumberjackLogger: ConcreteLogger {
-    
-    
-    
+
     init(logDirectory: URL, level: LogLevel, alsoPrint: Bool) {
         self.level = level
         let manager = DDLogFileManagerDefault(logsDirectory: logDirectory.path)
@@ -58,9 +56,11 @@ class LumberjackLogger: ConcreteLogger {
         l.rollingFrequency = 60 * 60 * 24 * 7 // weekly rollout
         DDLog.add(l, with: toDDLogLevel(level))
         self.fileLogger = l
-        
+        l.logFormatter = CustomFileFormatter()
         if alsoPrint {
-            DDLog.add(DDOSLogger(subsystem: Bundle.main.bundleIdentifier, category: "application logs") ,  with: toDDLogLevel(level))
+            let consoleLogger = DDOSLogger(subsystem: Bundle.main.bundleIdentifier, category: "")
+            consoleLogger.logFormatter = CustomTerminalFormatter()
+            DDLog.add(consoleLogger, with: toDDLogLevel(level))
         }
         
     }
@@ -105,5 +105,41 @@ func toDDLogLevel(_ level: LogLevel) -> DDLogLevel {
         return .info
     case .warning:
         return .warning
+    }
+}
+
+extension DateFormatter {
+    static func logDateFormatter() -> DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = "y-MM-dd H:m:ss.SSSSZ"
+        f.timeZone = TimeZone.current
+        return f
+    }
+}
+
+class CustomFileFormatter: NSObject, DDLogFormatter {
+    let dateFormatter: DateFormatter = DateFormatter.logDateFormatter()
+    
+    func format(message logMessage: DDLogMessage) -> String? {
+        String(format: "%@ - Thread: %@ - %@- Line %u - %@ - %@",
+               dateFormatter.string(from: logMessage.timestamp),
+               logMessage.threadID,
+               logMessage.fileName,
+               logMessage.line,
+               logMessage.function ?? "noFunctionName",
+               logMessage.message)
+    }
+}
+
+class CustomTerminalFormatter: NSObject, DDLogFormatter {
+    let dateFormatter: DateFormatter = DateFormatter.logDateFormatter()
+    
+    func format(message logMessage: DDLogMessage) -> String? {
+        String(format: "%@[%u] - %@ - %@",
+              
+               logMessage.fileName,
+               logMessage.line,
+               logMessage.function ?? "noFunctionName",
+               logMessage.message)
     }
 }

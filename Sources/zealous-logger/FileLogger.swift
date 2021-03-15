@@ -121,7 +121,7 @@ class CustomFileFormatter: NSObject, DDLogFormatter {
     let dateFormatter: DateFormatter = DateFormatter.logDateFormatter()
     
     func format(message logMessage: DDLogMessage) -> String? {
-        String(format: "%@ - Thread: %@ - %@- Line %u - %@ - %@",
+        String(format: "%@ - Thread: %@ - %@ - Line %u - %@ - %@",
                dateFormatter.string(from: logMessage.timestamp),
                logMessage.threadID,
                logMessage.fileName,
